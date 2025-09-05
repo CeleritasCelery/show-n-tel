@@ -275,12 +275,31 @@
             this.results = document.getElementById('results');
 
             this.form.addEventListener('submit', this.handleSearch.bind(this));
+            
+            // Check for URL parameter on page load
+            this.checkUrlParameter();
+        }
+
+        checkUrlParameter() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlParam = urlParams.get('url');
+            
+            if (urlParam) {
+                this.urlInput.value = urlParam;
+                // Auto-search if URL parameter is provided
+                this.handleSearch(new Event('submit'));
+            }
         }
 
         async handleSearch(e) {
             e.preventDefault();
             const url = this.urlInput.value.trim();
             if (!url) return;
+
+            // Update URL parameter for bookmarking/sharing
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('url', url);
+            window.history.replaceState({}, '', newUrl);
 
             this.showLoading();
 
