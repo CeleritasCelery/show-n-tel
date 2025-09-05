@@ -324,20 +324,30 @@
 
         async searchHackerNews(url) {
             try {
-                const domain = this.extractDomain(url);
-                const response = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(domain)}&tags=story`);
+                // Prefer searching by URL attribute for better precision
+                const response = await fetch(`https://hn.algolia.com/api/v1/search?tags=story&restrictSearchableAttributes=url&query=${encodeURIComponent(url)}`);
                 const data = await response.json();
 
-                return data.hits.filter(hit =>
-                    hit.url && (hit.url.includes(domain) || hit.title.toLowerCase().includes(domain.toLowerCase()))
-                ).slice(0, 10).map(hit => ({
-                    title: hit.title,
-                    url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
-                    points: hit.points,
-                    comments: hit.num_comments,
-                    author: hit.author,
-                    created: new Date(hit.created_at).toLocaleDateString()
-                }));
+                let results = data.hits || [];
+
+                // If nothing matched, loosen the query slightly by trying without restrictSearchableAttributes
+                if (!results.length) {
+                    const resp2 = await fetch(`https://hn.algolia.com/api/v1/search?tags=story&query=${encodeURIComponent(url)}`);
+                    const data2 = await resp2.json();
+                    results = data2.hits || [];
+                }
+
+                return results
+                    .filter(hit => hit.url && this.urlsEqual(hit.url, url))
+                    .slice(0, 10)
+                    .map(hit => ({
+                        title: hit.title,
+                        url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                        points: hit.points,
+                        comments: hit.num_comments,
+                        author: hit.author,
+                        created: new Date(hit.created_at).toLocaleDateString()
+                    }));
             } catch (error) {
                 console.error('HN search error:', error);
                 return [];
@@ -346,19 +356,42 @@
 
         async searchReddit(url) {
             try {
-                const domain = this.extractDomain(url);
-                const response = await fetch(`https://www.reddit.com/search.json?q=url:${encodeURIComponent(domain)}&limit=10`);
-                const data = await response.json();
+                // Try exact match via info.json first
+                const response = await fetch(`https://www.reddit.com/api/info.json?url=${encodeURIComponent(url)}`);
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    // Some responses may not be JSON due to anti-bot or UI HTML; we'll fall back below
+                    data = null;
+                }
 
-                return data.data.children.map(child => ({
-                    title: child.data.title,
-                    url: `https://reddit.com${child.data.permalink}`,
-                    subreddit: child.data.subreddit,
-                    score: child.data.score,
-                    comments: child.data.num_comments,
-                    author: child.data.author,
-                    created: new Date(child.data.created_utc * 1000).toLocaleDateString()
-                }));
+                let children = (data && data.data && Array.isArray(data.data.children)) ? data.data.children : [];
+
+                // If info.json didn't produce results, fall back to search.json with an exact url query
+                if (!children.length) {
+                    const q = `url:"${url}"`;
+                    const resp2 = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&limit=10`);
+                    try {
+                        const data2 = await resp2.json();
+                        children = (data2 && data2.data && Array.isArray(data2.data.children)) ? data2.data.children : [];
+                    } catch (e2) {
+                        children = [];
+                    }
+                }
+
+                return children
+                    .filter(child => child && child.data && child.data.url && this.urlsEqual(child.data.url, url))
+                    .slice(0, 10)
+                    .map(child => ({
+                        title: child.data.title,
+                        url: `https://reddit.com${child.data.permalink}`,
+                        subreddit: child.data.subreddit,
+                        score: child.data.score,
+                        comments: child.data.num_comments,
+                        author: child.data.author,
+                        created: new Date(child.data.created_utc * 1000).toLocaleDateString()
+                    }));
             } catch (error) {
                 console.error('Reddit search error:', error);
                 return [];
@@ -381,7 +414,9 @@
                 }
                 const data = JSON.parse(text.slice(start, end + 1));
 
-                return data.slice(0, 10).map(item => ({
+                const exact = data.filter(item => item.url && this.urlsEqual(item.url, url));
+
+                return exact.slice(0, 10).map(item => ({
                     title: item.title,
                     url: item.short_id_url && item.short_id_url.startsWith('http') ? item.short_id_url : `https://lobste.rs${item.short_id_url || ''}`,
                     score: item.score,
@@ -399,10 +434,37 @@
         extractDomain(url) {
             try {
                 const urlObj = new URL(url);
-                return urlObj.hostname.replace(/^www\./, '');
+                return urlObj.hostname.replace(/^www\\./, '');
             } catch {
                 return url;
             }
+        }
+
+        normalizeUrlForComparison(rawUrl) {
+            try {
+                const u = new URL(rawUrl);
+                const hostname = u.hostname.replace(/^www\./, '').toLowerCase();
+                // Normalize path: remove trailing slash except for root
+                let pathname = u.pathname || '';
+                if (pathname === '/') {
+                    pathname = '';
+                } else {
+                    // Remove all trailing slashes without using regex to avoid escaping pitfalls
+                    while (pathname.endsWith('/')) pathname = pathname.slice(0, -1);
+                }
+                const search = u.search || '';
+                // Ignore hash fragments
+                return `${hostname}${pathname}${search}`;
+            } catch {
+                // Best-effort: strip trailing slashes from a string
+                let s = String(rawUrl || '');
+                while (s.endsWith('/')) s = s.slice(0, -1);
+                return s;
+            }
+        }
+
+        urlsEqual(a, b) {
+            return this.normalizeUrlForComparison(a) === this.normalizeUrlForComparison(b);
         }
 
         showLoading() {
