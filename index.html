@@ -407,7 +407,7 @@
             <p>Add this bookmarklet to quickly search discussions for any page you're viewing!</p>
             
             <div class="bookmarklet-code">
-                <code id="bookmarkletCode">javascript:(function(){window.open('https://show-n.tel?url='+encodeURIComponent(window.location.href),'_blank');})();</code>
+                <code id="bookmarkletCode">javascript:(function(){window.open('https://show-n.tel?q='+encodeURIComponent(window.location.href),'_blank');})();</code>
                 <button class="copy-btn" id="copyBtn">Copy</button>
             </div>
             
@@ -462,7 +462,7 @@
 
         checkUrlParameter() {
             const urlParams = new URLSearchParams(window.location.search);
-            const urlParam = urlParams.get('url');
+            const urlParam = urlParams.get('q');
             
             if (urlParam) {
                 this.urlInput.value = urlParam;
@@ -480,7 +480,7 @@
 
             // Update URL parameter for bookmarking/sharing
             const newUrl = new URL(window.location);
-            newUrl.searchParams.set('url', url);
+            newUrl.searchParams.set('q', url);
             window.history.replaceState({}, '', newUrl);
 
             this.showLoading();
