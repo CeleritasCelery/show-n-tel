@@ -521,15 +521,24 @@
 
                 return results
                     .filter(hit => hit.url && this.urlsEqual(hit.url, url))
-                    .slice(0, 10)
                     .map(hit => ({
                         title: hit.title,
                         url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
                         points: hit.points,
                         comments: hit.num_comments,
                         author: hit.author,
-                        created: new Date(hit.created_at).toLocaleDateString()
-                    }));
+                        created: new Date(hit.created_at).toLocaleDateString(),
+                        created_timestamp: new Date(hit.created_at).getTime()
+                    }))
+                    .sort((a, b) => {
+                        // Sort by date first (newest first)
+                        if (b.created_timestamp !== a.created_timestamp) {
+                            return b.created_timestamp - a.created_timestamp;
+                        }
+                        // If same date, sort by comments (most comments first)
+                        return (b.comments || 0) - (a.comments || 0);
+                    })
+                    .slice(0, 10);
             } catch (error) {
                 console.error('HN search error:', error);
                 return [];
@@ -559,7 +568,8 @@
                             score: d.score,
                             comments: d.num_comments,
                             author: d.author,
-                            created: new Date(d.created_utc * 1000).toLocaleDateString()
+                            created: new Date(d.created_utc * 1000).toLocaleDateString(),
+                            created_timestamp: d.created_utc * 1000
                         });
                     }
                 };
@@ -610,7 +620,16 @@
                     // ignore
                 }
 
-                return results.slice(0, 10);
+                return results
+                    .sort((a, b) => {
+                        // Sort by date first (newest first)
+                        if (b.created_timestamp !== a.created_timestamp) {
+                            return b.created_timestamp - a.created_timestamp;
+                        }
+                        // If same date, sort by comments (most comments first)
+                        return (b.comments || 0) - (a.comments || 0);
+                    })
+                    .slice(0, 10);
             } catch (error) {
                 console.error('Reddit search error:', error);
                 return [];
@@ -635,15 +654,26 @@
 
                 const exact = data.filter(item => item.url && this.urlsEqual(item.url, url));
 
-                return exact.slice(0, 10).map(item => ({
-                    title: item.title,
-                    url: item.short_id_url && item.short_id_url.startsWith('http') ? item.short_id_url : `https://lobste.rs${item.short_id_url || ''}`,
-                    score: item.score,
-                    comments: item.comment_count,
-                    author: typeof item.submitter_user === 'string' ? item.submitter_user : (item.submitter_user && item.submitter_user.username) || '',
-                    tags: item.tags,
-                    created: new Date(item.created_at).toLocaleDateString()
-                }));
+                return exact
+                    .map(item => ({
+                        title: item.title,
+                        url: item.short_id_url && item.short_id_url.startsWith('http') ? item.short_id_url : `https://lobste.rs${item.short_id_url || ''}`,
+                        score: item.score,
+                        comments: item.comment_count,
+                        author: typeof item.submitter_user === 'string' ? item.submitter_user : (item.submitter_user && item.submitter_user.username) || '',
+                        tags: item.tags,
+                        created: new Date(item.created_at).toLocaleDateString(),
+                        created_timestamp: new Date(item.created_at).getTime()
+                    }))
+                    .sort((a, b) => {
+                        // Sort by date first (newest first)
+                        if (b.created_timestamp !== a.created_timestamp) {
+                            return b.created_timestamp - a.created_timestamp;
+                        }
+                        // If same date, sort by comments (most comments first)
+                        return (b.comments || 0) - (a.comments || 0);
+                    })
+                    .slice(0, 10);
             } catch (error) {
                 console.error('Lobsters search error:', error);
                 return [];
