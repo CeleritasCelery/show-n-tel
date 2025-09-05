@@ -97,6 +97,135 @@
         cursor: not-allowed;
     }
 
+    .bookmarklet-section {
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    .bookmarklet-btn {
+        padding: 0.75rem 1.5rem;
+        background: #f8f9fa;
+        color: #333;
+        border: 2px solid #e1e5e9;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .bookmarklet-btn:hover {
+        background: #e9ecef;
+        border-color: #adb5bd;
+    }
+
+    .modal {
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 16px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        position: relative;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    .close {
+        position: absolute;
+        top: 1rem;
+        right: 1.5rem;
+        font-size: 2rem;
+        cursor: pointer;
+        color: #999;
+        line-height: 1;
+    }
+
+    .close:hover {
+        color: #333;
+    }
+
+    .modal-content h2 {
+        margin-bottom: 1rem;
+        color: #333;
+    }
+
+    .modal-content p {
+        margin-bottom: 1.5rem;
+        color: #666;
+        line-height: 1.5;
+    }
+
+    .bookmarklet-code {
+        background: #f8f9fa;
+        border: 1px solid #e1e5e9;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        position: relative;
+    }
+
+    .bookmarklet-code code {
+        display: block;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        word-break: break-all;
+        margin-bottom: 1rem;
+        color: #333;
+        line-height: 1.4;
+    }
+
+    .copy-btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: background 0.3s ease;
+    }
+
+    .copy-btn:hover {
+        background: #5a67d8;
+    }
+
+    .copy-btn.copied {
+        background: #38a169;
+    }
+
+    .instructions {
+        color: #333;
+    }
+
+    .instructions h3 {
+        margin: 1.5rem 0 0.5rem 0;
+        color: #333;
+        font-size: 1.1rem;
+    }
+
+    .instructions ol, .instructions ul {
+        margin-left: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .instructions li {
+        margin-bottom: 0.5rem;
+    }
+
     .loading {
         text-align: center;
         padding: 2rem;
@@ -255,6 +384,12 @@
                 Search Discussions
             </button>
         </form>
+        
+        <div class="bookmarklet-section">
+            <button class="bookmarklet-btn" id="bookmarkletBtn">
+                📚 Get Bookmarklet
+            </button>
+        </div>
     </div>
 
     <div id="loading" class="loading" style="display: none;">
@@ -263,6 +398,37 @@
     </div>
 
     <div id="results" class="results"></div>
+    
+    <!-- Bookmarklet Modal -->
+    <div id="bookmarkletModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" id="closeModal">&times;</span>
+            <h2>📚 Show-N-Tel Bookmarklet</h2>
+            <p>Add this bookmarklet to quickly search discussions for any page you're viewing!</p>
+            
+            <div class="bookmarklet-code">
+                <code id="bookmarkletCode">javascript:(function(){window.open('https://show-n.tel?url='+encodeURIComponent(window.location.href),'_blank');})();</code>
+                <button class="copy-btn" id="copyBtn">Copy</button>
+            </div>
+            
+            <div class="instructions">
+                <h3>How to set it up:</h3>
+                <ol>
+                    <li>Copy the code above by clicking the "Copy" button</li>
+                    <li>Create a new bookmark in your browser</li>
+                    <li>Paste the code as the URL/location of the bookmark</li>
+                    <li>Name it "Show-N-Tel" or "Find Discussions"</li>
+                </ol>
+                
+                <h3>How to use:</h3>
+                <ul>
+                    <li>Navigate to any webpage</li>
+                    <li>Click your bookmarklet</li>
+                    <li>It will open Show-N-Tel with that page's URL and start searching!</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -273,8 +439,22 @@
             this.searchBtn = document.getElementById('searchBtn');
             this.loading = document.getElementById('loading');
             this.results = document.getElementById('results');
+            this.bookmarkletBtn = document.getElementById('bookmarkletBtn');
+            this.bookmarkletModal = document.getElementById('bookmarkletModal');
+            this.closeModal = document.getElementById('closeModal');
+            this.copyBtn = document.getElementById('copyBtn');
 
             this.form.addEventListener('submit', this.handleSearch.bind(this));
+            this.bookmarkletBtn.addEventListener('click', this.showBookmarkletModal.bind(this));
+            this.closeModal.addEventListener('click', this.hideBookmarkletModal.bind(this));
+            this.copyBtn.addEventListener('click', this.copyBookmarklet.bind(this));
+            
+            // Close modal when clicking outside
+            this.bookmarkletModal.addEventListener('click', (e) => {
+                if (e.target === this.bookmarkletModal) {
+                    this.hideBookmarkletModal();
+                }
+            });
             
             // Check for URL parameter on page load
             this.checkUrlParameter();
@@ -286,6 +466,8 @@
             
             if (urlParam) {
                 this.urlInput.value = urlParam;
+                // Hide bookmarklet button since they're already using it
+                this.bookmarkletBtn.style.display = 'none';
                 // Auto-search if URL parameter is provided
                 this.handleSearch(new Event('submit'));
             }
@@ -557,6 +739,9 @@
         }
 
         displayResults(results) {
+            // Hide bookmarklet button once results are displayed
+            this.bookmarkletBtn.style.display = 'none';
+            
             const platforms = [
                 { key: 'hackernews', name: 'Hacker News', class: 'hn', icon: '📰' },
                 { key: 'reddit', name: 'Reddit', class: 'reddit', icon: '🤖' },
@@ -614,6 +799,51 @@
                     </div>
                 </div>
             `;
+        }
+
+        showBookmarkletModal() {
+            this.bookmarkletModal.style.display = 'flex';
+        }
+
+        hideBookmarkletModal() {
+            this.bookmarkletModal.style.display = 'none';
+        }
+
+        async copyBookmarklet() {
+            const bookmarkletCode = document.getElementById('bookmarkletCode').textContent;
+            
+            try {
+                await navigator.clipboard.writeText(bookmarkletCode);
+                this.copyBtn.textContent = 'Copied!';
+                this.copyBtn.classList.add('copied');
+                
+                setTimeout(() => {
+                    this.copyBtn.textContent = 'Copy';
+                    this.copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                // Fallback for browsers that don't support clipboard API
+                const textArea = document.createElement('textarea');
+                textArea.value = bookmarkletCode;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    this.copyBtn.textContent = 'Copied!';
+                    this.copyBtn.classList.add('copied');
+                    
+                    setTimeout(() => {
+                        this.copyBtn.textContent = 'Copy';
+                        this.copyBtn.classList.remove('copied');
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy: ', err);
+                }
+                
+                document.body.removeChild(textArea);
+            }
         }
     }
 
