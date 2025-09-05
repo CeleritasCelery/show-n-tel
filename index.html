@@ -368,15 +368,25 @@
         async searchLobsters(url) {
             try {
                 const domain = this.extractDomain(url);
-                const response = await fetch(`https://lobste.rs/search.json?q=${encodeURIComponent(domain)}`);
-                const data = await response.json();
+                // Use a CORS-friendly proxy to fetch Lobsters domain JSON
+                // Lobsters does not set CORS headers on JSON endpoints; r.jina.ai mirrors the content
+                const endpoint = `https://r.jina.ai/http://lobste.rs/domains/${encodeURIComponent(domain)}.json`;
+                const text = await fetch(endpoint).then(r => r.text());
+
+                // r.jina.ai wraps the response in a readable format; extract the JSON array between [ and ]
+                const start = text.indexOf('[');
+                const end = text.lastIndexOf(']');
+                if (start === -1 || end === -1 || end <= start) {
+                    return [];
+                }
+                const data = JSON.parse(text.slice(start, end + 1));
 
                 return data.slice(0, 10).map(item => ({
                     title: item.title,
-                    url: `https://lobste.rs${item.short_id_url}`,
+                    url: item.short_id_url && item.short_id_url.startsWith('http') ? item.short_id_url : `https://lobste.rs${item.short_id_url || ''}`,
                     score: item.score,
                     comments: item.comment_count,
-                    author: item.submitter_user.username,
+                    author: typeof item.submitter_user === 'string' ? item.submitter_user : (item.submitter_user && item.submitter_user.username) || '',
                     tags: item.tags,
                     created: new Date(item.created_at).toLocaleDateString()
                 }));
